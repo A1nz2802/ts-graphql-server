@@ -1,6 +1,11 @@
 import { ApolloServer } from 'apollo-server-express'
 import { ApolloServerPluginDrainHttpServer } from 'apollo-server-core'
-import HelloResolver from '../resolvers/helloResolver'
+import AppDataSource from '../database/typeorm'
+
+import CategoryResolver from '../resolvers/categoryResolver'
+import PingResolver from '../resolvers/ping'
+import ProductResolver from '../resolvers/productResolver'
+import UserResolver from '../resolvers/userResolver'
 import { buildSchema } from 'type-graphql'
 
 import cors from 'cors'
@@ -16,6 +21,8 @@ export default class Server {
     private readonly httpServer = http.createServer(app)
   ) {
     this.middlewares()
+
+    this.connectDB()
   }
 
   middlewares (): void {
@@ -29,9 +36,24 @@ export default class Server {
     this.app.use(express.static('src/public'))
   }
 
+  async connectDB (): Promise<void> {
+    await AppDataSource.initialize()
+      .then(() => {
+        console.log('AWS Database is online!')
+      })
+      .catch((err) => {
+        console.error('Error during Data Source initialization', err)
+      })
+  }
+
   async startApolloServer (): Promise<void> {
     const schema = await buildSchema({
-      resolvers: [HelloResolver]
+      resolvers: [
+        PingResolver,
+        UserResolver,
+        CategoryResolver,
+        ProductResolver
+      ]
     })
 
     const apolloServer = new ApolloServer({
@@ -42,7 +64,8 @@ export default class Server {
     await apolloServer.start()
 
     apolloServer.applyMiddleware({
-      app: this.app, path: '/'
+      app: this.app,
+      path: '/'
     })
 
     await new Promise<void>(resolve => this.httpServer.listen({ port: 4000 }, resolve))
